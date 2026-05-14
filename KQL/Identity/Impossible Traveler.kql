@@ -7,7 +7,7 @@
 //            indicating the travel speed is physically impossible.
 // =====================================================
 
-let TimeWindow = 4h;
+let TimeWindow = 90m;
 let DistanceThresholdKm = 500;
 
 AADSignInEventsBeta
@@ -17,6 +17,7 @@ AADSignInEventsBeta
 | where isnotempty(Latitude)
 | where isnotempty(Longitude)
 | where ErrorCode == 0
+| where LogonType has_any ("interactiveUser")
 | project
     Timestamp,
     AccountUpn,
@@ -26,17 +27,18 @@ AADSignInEventsBeta
     Latitude,
     Longitude,
     UserAgent,
-    SessionId
+    SessionId,
+    LogonType
 | order by AccountUpn asc, Timestamp asc
 | serialize
 | extend
-    PrevTimestamp  = prev(Timestamp),
-    PrevAccount    = prev(AccountUpn),
-    PrevIP         = prev(IPAddress),
-    PrevCountry    = prev(Country),
-    PrevCity       = prev(City),
-    PrevLatitude   = prev(Latitude),
-    PrevLongitude  = prev(Longitude)
+    PrevTimestamp = prev(Timestamp),
+    PrevAccount   = prev(AccountUpn),
+    PrevIP        = prev(IPAddress),
+    PrevCountry   = prev(Country),
+    PrevCity      = prev(City),
+    PrevLatitude  = prev(Latitude),
+    PrevLongitude = prev(Longitude)
 | where AccountUpn == PrevAccount
 | extend
     TimeDiffMinutes = datetime_diff('minute', Timestamp, PrevTimestamp)
@@ -61,14 +63,13 @@ AADSignInEventsBeta
     AccountUpn,
     CurrentIP       = IPAddress,
     CurrentCountry  = Country,
-    CurrentCity     = City,
-    PreviousIP      = PrevIP,
     PreviousCountry = PrevCountry,
     PreviousCity    = PrevCity,
     DistanceKm,
     TimeDiffMinutes,
     TravelSpeedKmh,
     UserAgent,
-    SessionId
-| summarize Alerts = make_set(pack_all()) by AccountUpn
-| order by AccountUpn asc
+    SessionId,
+    LogonType
+| distinct AccountUpn, Timestamp, SessionId, CurrentIP, CurrentCountry, PreviousCountry, PreviousCity, DistanceKm, TimeDiffMinutes, TravelSpeedKmh, UserAgent, LogonType
+| order by TravelSpeedKmh desc
