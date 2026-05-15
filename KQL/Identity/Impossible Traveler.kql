@@ -7,9 +7,8 @@
 //            indicating the travel speed is physically impossible.
 // =====================================================
 
-let TimeWindow = 90m;
+let TimeWindow = 60m;
 let DistanceThresholdKm = 500;
-
 AADSignInEventsBeta
 | where Timestamp > ago(TimeWindow)
 | where isnotempty(AccountUpn)
@@ -28,17 +27,25 @@ AADSignInEventsBeta
     Longitude,
     UserAgent,
     SessionId,
-    LogonType
+    LogonType,
+    EntraIdDeviceId,
+    DeviceTrustType,
+    IsManaged,
+    IsCompliant
 | order by AccountUpn asc, Timestamp asc
 | serialize
 | extend
     PrevTimestamp = prev(Timestamp),
-    PrevAccount   = prev(AccountUpn),
-    PrevIP        = prev(IPAddress),
-    PrevCountry   = prev(Country),
-    PrevCity      = prev(City),
-    PrevLatitude  = prev(Latitude),
-    PrevLongitude = prev(Longitude)
+    PrevAccount = prev(AccountUpn),
+    PrevIP = prev(IPAddress),
+    PrevCountry = prev(Country),
+    PrevCity = prev(City),
+    PrevLatitude = prev(Latitude),
+    PrevLongitude = prev(Longitude),
+    PrevEntraIdDeviceId = prev(EntraIdDeviceId),
+    PrevDeviceTrustType = prev(DeviceTrustType),
+    PrevIsManaged = prev(IsManaged),
+    PrevIsCompliant = prev(IsCompliant)
 | where AccountUpn == PrevAccount
 | extend
     TimeDiffMinutes = datetime_diff('minute', Timestamp, PrevTimestamp)
@@ -52,24 +59,49 @@ AADSignInEventsBeta
     ) / 1000.0
 | extend
     TravelSpeedKmh = (DistanceKm / todouble(TimeDiffMinutes)) * 60
-// Filter: distance must exceed threshold
 | where DistanceKm > DistanceThresholdKm
-// Filter: speed must be physically impossible (faster than commercial aircraft ~900 km/h)
 | where TravelSpeedKmh > 900
-// Filter: sign-ins must be from different countries
 | where Country != PrevCountry
+| extend
+    CurrentEntraIdDeviceId = EntraIdDeviceId,
+    CurrentDeviceTrustType = DeviceTrustType,
+    CurrentIsManaged = IsManaged,
+    CurrentIsCompliant = IsCompliant,
+    PreviousEntraIdDeviceId = PrevEntraIdDeviceId,
+    PreviousDeviceTrustType = PrevDeviceTrustType,
+    PreviousIsManaged = PrevIsManaged,
+    PreviousIsCompliant = PrevIsCompliant
+| extend TriggerReason = case(
+        isnull(CurrentEntraIdDeviceId) or isnull(PreviousEntraIdDeviceId), "DeviceIdMissing",
+        CurrentEntraIdDeviceId != PreviousEntraIdDeviceId, "DeviceMismatch",
+        "NotTriggered"
+    )
+| where TriggerReason != "NotTriggered"
 | project
     Timestamp,
     AccountUpn,
-    CurrentIP       = IPAddress,
-    CurrentCountry  = Country,
+    CurrentIP = IPAddress,
+    CurrentCountry = Country,
     PreviousCountry = PrevCountry,
-    PreviousCity    = PrevCity,
+    PreviousCity = PrevCity,
     DistanceKm,
     TimeDiffMinutes,
     TravelSpeedKmh,
     UserAgent,
     SessionId,
-    LogonType
-| distinct AccountUpn, Timestamp, SessionId, CurrentIP, CurrentCountry, PreviousCountry, PreviousCity, DistanceKm, TimeDiffMinutes, TravelSpeedKmh, UserAgent, LogonType
+    LogonType,
+    CurrentEntraIdDeviceId,
+    CurrentDeviceTrustType,
+    CurrentIsManaged,
+    CurrentIsCompliant,
+    PreviousEntraIdDeviceId,
+    PreviousDeviceTrustType,
+    PreviousIsManaged,
+    PreviousIsCompliant,
+    TriggerReason
+| distinct AccountUpn, Timestamp, SessionId, CurrentIP, CurrentCountry, PreviousCountry, PreviousCity,
+           DistanceKm, TimeDiffMinutes, TravelSpeedKmh, UserAgent, LogonType,
+           CurrentEntraIdDeviceId, CurrentDeviceTrustType, CurrentIsManaged, CurrentIsCompliant,
+           PreviousEntraIdDeviceId, PreviousDeviceTrustType, PreviousIsManaged, PreviousIsCompliant,
+           TriggerReason
 | order by TravelSpeedKmh desc
