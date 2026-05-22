@@ -1,0 +1,36 @@
+// =====================================================
+// Detection: SMTP Brute-Force / Password Spray Attempts
+// Platform:  Microsoft Defender XDR / Advanced Hunting
+// Table:     EntraIdSignInEvents
+// Purpose:   Detects high-volume failed SMTP authentication
+//            attempts against Exchange Online originating
+//            from a single IP address within a 24-hour window.
+//            Identifies potential password spraying, brute-force,
+//            or credential-stuffing activity targeting user
+//            mailboxes via legacy Authenticated SMTP.
+// =====================================================
+
+EntraIdSignInEvents
+| where Timestamp > ago(1d)
+| where Application == "Office 365 Exchange Online"
+| where ClientAppUsed == "Authenticated SMTP"
+| where ErrorCode in (50126, 50053)
+| summarize
+    FailedAttempts = count(),
+    TargetedAccounts = dcount(AccountUpn),
+    Accounts = make_set(AccountUpn, 50),
+    Countries = make_set(Country, 20),
+    Cities = make_set(City, 20),
+    UserAgents = make_set(UserAgent, 20),
+    SessionIds = make_set(SessionId, 50),
+    DeviceIds = make_set(EntraIdDeviceId, 50),
+    DeviceTrustTypes = make_set(DeviceTrustType, 20),
+    ManagedDeviceCount = dcountif(EntraIdDeviceId, IsManaged == true),
+    CompliantDeviceCount = dcountif(EntraIdDeviceId, IsCompliant == true),
+    ErrorCodes = make_set(ErrorCode, 10),
+    FirstAttempt = min(Timestamp),
+    LastAttempt = max(Timestamp)
+    by IPAddress
+| where FailedAttempts >= 50
+| extend DurationMinutes = datetime_diff('minute', LastAttempt, FirstAttempt)
+| order by FailedAttempts desc
