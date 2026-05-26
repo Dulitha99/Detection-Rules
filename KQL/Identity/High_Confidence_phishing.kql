@@ -1,0 +1,111 @@
+let UrlData =
+EmailUrlInfo
+| project NetworkMessageId, Url
+| join kind=leftouter (
+    UrlClickEvents
+    | project
+        NetworkMessageId,
+        Url,
+        ClickedBy = AccountUpn,
+        ClickTimestamp = Timestamp
+) on NetworkMessageId, Url
+| extend ClickStatus =
+    iff(isnotempty(ClickedBy),"Clicked","Not Clicked")
+| summarize Urls =
+    make_list(
+        pack(
+            "Url", Url,
+            "ClickStatus", ClickStatus,
+            "ClickedBy", ClickedBy,
+            "ClickTimestamp", ClickTimestamp
+        )
+    )
+by NetworkMessageId;
+EmailEvents
+| where EmailDirection in ("Inbound", "Intra-org")
+| where DeliveryAction == "Delivered"
+| where DeliveryLocation == "Inbox/folder"
+| where ThreatTypes has "Phish"
+| where ConfidenceLevel contains "High"
+| where EmailAction != "Send to quarantine"
+| where UserLevelAction != "Allow"
+| where IsFirstContact == "1"
+| where UserLevelPolicy !in (
+    "Trusted recipient (User override)",
+    "Trusted domain (User override)",
+    "Sender domain list (User override)",
+    "Sender address list (Safe sender / Blocked sender)"
+)
+| extend
+    ToString = tostring(To),
+    ThreatTypesString = tostring(ThreatTypes),
+    DetectionMethodsString = tostring(DetectionMethods),
+    ConfidenceLevelString = tostring(ConfidenceLevel),
+    AuthenticationDetailsString = tostring(AuthenticationDetails)
+| join kind=leftouter UrlData on NetworkMessageId
+| summarize 
+    ClickStatus = make_list(pack("Recipient", RecipientEmailAddress, "URLs", Urls)),
+    Timestamp = take_any(Timestamp),
+    InternetMessageId = take_any(InternetMessageId),
+    SenderMailFromAddress = take_any(SenderMailFromAddress),
+    SenderFromAddress = take_any(SenderFromAddress),
+    SenderDisplayName = take_any(SenderDisplayName),
+    SenderMailFromDomain = take_any(SenderMailFromDomain),
+    SenderFromDomain = take_any(SenderFromDomain),
+    SenderIPv4 = take_any(SenderIPv4),
+    Subject = take_any(Subject),
+    EmailClusterId = take_any(EmailClusterId),
+    EmailDirection = take_any(EmailDirection),
+    DeliveryAction = take_any(DeliveryAction),
+    DeliveryLocation = take_any(DeliveryLocation),
+    ThreatTypes = take_any(ThreatTypesString),
+    DetectionMethods = take_any(DetectionMethodsString),
+    ConfidenceLevel = take_any(ConfidenceLevelString),
+    AuthenticationDetails = take_any(AuthenticationDetailsString),
+    AttachmentCount = take_any(AttachmentCount),
+    UrlCount = take_any(UrlCount),
+    EmailLanguage = take_any(EmailLanguage),
+    Connectors = take_any(Connectors),
+    OrgLevelAction = take_any(OrgLevelAction),
+    OrgLevelPolicy = take_any(OrgLevelPolicy),
+    ReportId = take_any(ReportId),
+    To = take_any(ToString),
+    RecipientDomain = take_any(RecipientDomain),
+    EmailSize = take_any(EmailSize),
+    IsFirstContact = take_any(IsFirstContact),
+    LatestDeliveryLocation = take_any(LatestDeliveryLocation),
+    LatestDeliveryAction = take_any(LatestDeliveryAction)
+by NetworkMessageId
+| project
+    Timestamp,
+    NetworkMessageId,
+    InternetMessageId,
+    SenderMailFromAddress,
+    SenderFromAddress,
+    SenderDisplayName,
+    SenderMailFromDomain,
+    SenderFromDomain,
+    SenderIPv4,
+    Subject,
+    EmailClusterId,
+    EmailDirection,
+    DeliveryAction,
+    DeliveryLocation,
+    ThreatTypes,
+    DetectionMethods,
+    ConfidenceLevel,
+    AuthenticationDetails,
+    AttachmentCount,
+    UrlCount,
+    EmailLanguage,
+    Connectors,
+    OrgLevelAction,
+    OrgLevelPolicy,
+    ReportId,
+    To,
+    RecipientDomain,
+    EmailSize,
+    IsFirstContact,
+    LatestDeliveryLocation,
+    LatestDeliveryAction,
+    ClickStatus
