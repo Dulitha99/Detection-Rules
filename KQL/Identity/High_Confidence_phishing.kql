@@ -1,20 +1,3 @@
-// =====================================================
-// Detection: High-Confidence Phishing Emails Delivered
-//            with URL Click Activity
-// Platform:  Microsoft Defender XDR / Advanced Hunting
-// Tables:    EmailEvents, EmailUrlInfo, UrlClickEvents
-// Purpose:   Detects high-confidence phishing emails that
-//            were successfully delivered to user inboxes
-//            and identifies whether recipients interacted
-//            with embedded URLs.
-//            
-//            This detection helps identify potential
-//            successful phishing attempts, user exposure,
-//            credential harvesting activity, or malicious
-//            post-delivery user interaction with phishing
-//            content.
-// =====================================================
-
 let UrlData =
 EmailUrlInfo
 | project NetworkMessageId, Url
@@ -59,6 +42,7 @@ EmailEvents
     DetectionMethodsString = tostring(DetectionMethods),
     ConfidenceLevelString = tostring(ConfidenceLevel),
     AuthenticationDetailsString = tostring(AuthenticationDetails)
+| summarize arg_max(Timestamp, *) by NetworkMessageId
 | join kind=leftouter UrlData on NetworkMessageId
 | summarize 
     ClickStatus = make_list(pack("Recipient", RecipientEmailAddress, "URLs", Urls)),
