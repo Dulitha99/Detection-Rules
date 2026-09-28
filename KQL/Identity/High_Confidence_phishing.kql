@@ -1,3 +1,12 @@
+// =====================================================
+// Detection: High Confidence Phishing Emails Delivered
+// Platform:  Microsoft Defender XDR / Advanced Hunting
+// Table:     EmailEvents, EmailUrlInfo, UrlClickEvents
+// Purpose:   Detects inbound high-confidence phishing emails that were
+//            delivered to a user's inbox, and correlates them with
+//            URL click events to identify if the user clicked any links.
+// =====================================================
+
 let UrlData =
 EmailUrlInfo
 | project NetworkMessageId, Url

@@ -1,3 +1,12 @@
+// =====================================================
+// Detection: USB Mass Storage File Write
+// Platform:  CrowdStrike Falcon / LogScale
+// Table:     *FileWritten, DcUsbDeviceConnected
+// Purpose:   Detects files being written to a USB mass storage device,
+//            joining file write events with USB connection events to 
+//            gather detailed device and user information.
+// =====================================================
+
 #event_simpleName=/.*FileWritten/
 | IsOnRemovableDisk=1
 
